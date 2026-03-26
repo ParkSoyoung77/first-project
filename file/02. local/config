@@ -1,0 +1,45 @@
+# 공통 설정 (변수처럼 상단에 선언 가능)
+Host *
+  AddKeysToAgent yes
+  IdentityFile ~/.ssh/id_rsa
+  User sy
+
+
+# --- 1. 대문 (Bastion Hosts) ---
+# 메인 배스천
+Host bastion
+  HostName 10.0.105.1
+  Port 22
+
+# 백업 배스천 
+Host bastion2
+  HostName 172.16.0.11
+  Port 22
+
+
+# --- 2. 내부 서버들 (메인 배스천 경유) ---
+# bastion이 안 되면 bastion2를 시도합니다(순차적 시도)
+Host nfs
+  HostName 172.16.0.3
+  ProxyJump bastion,bastion2
+
+Host k8s-m
+  HostName 172.16.0.5
+  ProxyJump bastion,bastion2
+
+Host node1
+  HostName 172.16.0.6
+  ProxyJump bastion,bastion2
+
+Host node2
+  HostName 172.16.0.7
+  ProxyJump bastion,bastion2
+
+
+Host db-m
+  HostName 172.16.0.8
+  ProxyJump bastion,bastion2
+
+Host db-s
+  HostName 172.16.0.9
+  ProxyJump bastion,bastion2

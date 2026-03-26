@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: locker-view-ns
+data:
+  default.conf: |
+    # [핵심] 새로운 로그 포맷 정의 (맨 앞에 실제 IP가 오도록 설정)
+    log_format sy_special '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+    server {
+        listen 80;
+        server_name sy-locker-view.com;
+        charset utf-8;
+
+        # [진짜 IP 추출 설정]
+        # 모든 사설 대역(Calico, Node, MetalLB)을 신뢰 대역으로 추가합니다.
+        set_real_ip_from 10.0.0.0/8;
+        set_real_ip_from 172.16.0.0/12;
+        set_real_ip_from 192.168.0.0/16;
+        real_ip_header X-Forwarded-For;
+        real_ip_recursive on;
+
+        # [수정] 위에서 정의한 sy_special 포맷을 사용합니다.
+        access_log /var/log/nginx/sy_access.log sy_special;
+        error_log  /var/log/nginx/sy_error.log;
+
+        location / {
+            root /usr/share/nginx/html;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api/lockers/ {
+            proxy_pass http://locker-service-svc:8001;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location /api/reserve {
+            proxy_pass http://reserve-service-svc:8002;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location /api/admin/ {
+            proxy_pass http://admin-service-svc:8003/api/admin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        error_page 403 /403.html;
+        location = /403.html {
+            root /usr/share/nginx/html;
+            internal;
+        }
+    }
